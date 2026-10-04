@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Tooltip } from '@radix-ui/themes'
-import { ArrowCounterClockwise, ButterflyIcon, CheckSquareIcon, FileTextIcon, FolderOpenIcon, GlobeHemisphereWestIcon, ImageSquareIcon, ListIcon, PencilSimpleIcon, PersonIcon, QuestionMarkIcon, SpeakerHigh, SpeakerSlash, SquareIcon, TerminalWindowIcon } from '@phosphor-icons/react'
+import { ArrowCounterClockwise, ButterflyIcon, CheckSquareIcon, FileTextIcon, FolderOpenIcon, GlobeHemisphereWestIcon, ImageSquareIcon, ListIcon, PencilSimpleIcon, PersonIcon, PlusIcon, QuestionMarkIcon, SpeakerHigh, SpeakerSlash, SquareIcon, TerminalWindowIcon } from '@phosphor-icons/react'
 import { useLocation } from 'wouter'
 import type { WorldEntry, WorldHoverPreview, WorldObjectAsset, WorldSceneProject } from '../types/world'
 import { type ControllerMode, useDebugStore } from '../store/debug'
@@ -97,6 +97,21 @@ export function WorldSidebar({
           {!compact && <ListIcon size={16} weight="regular" className="text-white/60 sm:hidden" />}
           <span>image-blaster</span>{activeSlug && <span className="text-white/40 sm:hidden md:hidden">/ {activeSlug}</span>}
         </AppButton>
+        {import.meta.env.DEV && (
+          <Tooltip content="Blast an image" delayDuration={0} side="right">
+            <AppButton
+              onClick={() => {
+                navigate('/blast')
+                setMenuOpen(false)
+              }}
+              className="h-7 w-7 justify-center p-1 text-white"
+              aria-label="Blast an image"
+              title="Blast an image"
+            >
+              <PlusIcon size={16} weight="regular" />
+            </AppButton>
+          </Tooltip>
+        )}
         <AppButton
           onClick={() => setButterfliesEnabled(!butterfliesEnabled)}
           active={butterfliesEnabled}

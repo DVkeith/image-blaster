@@ -10,6 +10,7 @@ import { useDebugStore } from './store/debug'
 import { isEditableTarget } from './utils/dom'
 import type { WorldEntry, WorldHoverPreview, WorldObjectAsset } from './types/world'
 import { TerminalWindowIcon } from '@phosphor-icons/react'
+import { BlastScreen } from './components/BlastScreen'
 
 const LevaPanel = import.meta.env.DEV
   ? lazy(() => import('leva').then((module) => ({ default: module.Leva })))
@@ -22,18 +23,33 @@ export function App() {
   const [worlds, setWorlds] = useState(loadWorlds)
   const [refreshingWorlds, setRefreshingWorlds] = useState(false)
   const refreshTimeoutRef = useRef<number | undefined>(undefined)
+  const [blastMatch] = useRoute('/blast')
+  const [, navigate] = useLocation()
 
   const refreshWorlds = useCallback(async () => {
-    if (!import.meta.env.DEV) return
+    if (!import.meta.env.DEV) return loadWorlds()
     setRefreshingWorlds(true)
     try {
-      setWorlds(await fetchWorlds())
+      const next = await fetchWorlds()
+      setWorlds(next)
+      return next
     } catch (error) {
       console.warn('Could not refresh local world assets.', error)
+      return null
     } finally {
       setRefreshingWorlds(false)
     }
   }, [])
+
+  const handleBlasted = useCallback(async (slug: string) => {
+    await refreshWorlds()
+    navigate(`/${slug}`)
+  }, [navigate, refreshWorlds])
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || worlds.length || blastMatch) return
+    navigate('/blast')
+  }, [blastMatch, navigate, worlds.length])
 
   useEffect(() => {
     refreshWorlds()
@@ -55,6 +71,15 @@ export function App() {
       import.meta.hot?.off('worlds-changed', refreshSoon)
     }
   }, [refreshWorlds])
+
+  if (import.meta.env.DEV && (blastMatch || !worlds.length)) {
+    return (
+      <BlastScreen
+        onBlasted={(slug) => void handleBlasted(slug)}
+        onBack={worlds.length ? () => navigate(`/${worlds[0].slug}`) : undefined}
+      />
+    )
+  }
 
   if (!worlds.length) {
     return (
