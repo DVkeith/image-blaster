@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 import fs from 'fs'
 import { spawn } from 'child_process'
+import { MAX_IMAGE_BYTES } from './src/blastShared.ts'
+import { blastImage, worldLabsReady } from './src/server/blastImage.ts'
 
 type WorldManifest = Record<string, unknown> & {
   assets?: Record<string, unknown> & {
@@ -710,6 +712,65 @@ function worldsPlugin(): Plugin {
         res.setHeader('Cache-Control', 'no-store')
         res.setHeader('Content-Type', 'application/json')
         res.end(JSON.stringify(readWorlds()))
+      })
+      server.middlewares.use('/__blast', (req, res) => {
+        if (req.method === 'GET') {
+          worldLabsReady(repoRoot).then((ready) => {
+            res.setHeader('Cache-Control', 'no-store')
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ ready }))
+          }).catch((error: unknown) => {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'Could not read setup.' }))
+          })
+          return
+        }
+
+        if (req.method !== 'POST') {
+          res.statusCode = 405
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ error: 'Method not allowed' }))
+          return
+        }
+
+        const rawUrl = (req as { originalUrl?: string }).originalUrl || req.url || '/'
+        const requestUrl = new URL(rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`, 'http://localhost')
+        const filename = requestUrl.searchParams.get('name') || 'image.png'
+        const contentType = typeof req.headers['content-type'] === 'string' ? req.headers['content-type'] : undefined
+        const chunks: Buffer[] = []
+        let size = 0
+        let rejected = false
+        req.on('data', (chunk: Buffer) => {
+          if (rejected) return
+          size += chunk.length
+          if (size > MAX_IMAGE_BYTES) {
+            rejected = true
+            res.statusCode = 413
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: 'Image is too large.' }))
+            req.destroy()
+            return
+          }
+          chunks.push(chunk)
+        })
+        req.on('end', () => {
+          if (rejected) return
+          blastImage({
+            filename,
+            bytes: Buffer.concat(chunks),
+            contentType,
+            repoRoot,
+          }).then((result) => {
+            res.setHeader('Cache-Control', 'no-store')
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify(result))
+          }).catch((error: unknown) => {
+            res.statusCode = 400
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'Blast failed.' }))
+          })
+        })
       })
       server.middlewares.use('/__open-claude-terminal', (_req, res) => {
         if (!openClaudeTerminal()) {
